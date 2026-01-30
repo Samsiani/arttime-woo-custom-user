@@ -20,6 +20,11 @@ function wcu_get_sms_consent( $user_id ) {
 	$val = is_string( $val ) ? strtolower( $val ) : '';
 	return in_array( $val, array( 'yes', 'no' ), true ) ? $val : '';
 }
+function wcu_get_call_consent( $user_id ) {
+	$val = get_user_meta( $user_id, '_call_consent', true );
+	$val = is_string( $val ) ? strtolower( $val ) : '';
+	return in_array( $val, array( 'yes', 'no' ), true ) ? $val : '';
+}
 function wcu_get_user_phone( $user_id ) {
 	$val = get_user_meta( $user_id, 'billing_phone', true );
 	return is_string( $val ) ? $val : '';

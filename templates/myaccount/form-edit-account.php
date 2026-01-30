@@ -35,6 +35,8 @@ do_action( 'woocommerce_before_edit_account_form' ); ?>
 			$user_id = get_current_user_id();
 			$sms_consent = wcu_get_sms_consent( $user_id );
 			if ( $sms_consent === '' ) $sms_consent = 'yes';
+			$call_consent = wcu_get_call_consent( $user_id );
+			if ( $call_consent === '' ) $call_consent = 'yes';
 			?>
 			<p class="form-row wcu-half" style="grid-column:1 / -1;">
 				<div class="wcu-inline-control wcu-inline-control--center wcu-inline-control--highlight" style="width:100%;">
@@ -42,6 +44,15 @@ do_action( 'woocommerce_before_edit_account_form' ); ?>
 					<div class="wcu-radio-inline">
 						<label><input type="radio" name="account_sms_consent" value="yes" <?php checked( $sms_consent,'yes'); ?> /> <?php esc_html_e( 'Yes', 'wcu' ); ?></label>
 						<label><input type="radio" name="account_sms_consent" value="no"  <?php checked( $sms_consent,'no');  ?> /> <?php esc_html_e( 'No', 'wcu' ); ?></label>
+					</div>
+				</div>
+			</p>
+			<p class="form-row wcu-half" style="grid-column:1 / -1;">
+				<div class="wcu-inline-control wcu-inline-control--center wcu-inline-control--highlight" style="width:100%;">
+					<span class="wcu-inline-control__label"><?php esc_html_e( 'თანხმობა სატელეფონო ზარზე', 'wcu' ); ?></span>
+					<div class="wcu-radio-inline">
+						<label><input type="radio" name="account_call_consent" value="yes" <?php checked( $call_consent,'yes'); ?> /> <?php esc_html_e( 'დიახ', 'wcu' ); ?></label>
+						<label><input type="radio" name="account_call_consent" value="no"  <?php checked( $call_consent,'no');  ?> /> <?php esc_html_e( 'არა', 'wcu' ); ?></label>
 					</div>
 				</div>
 			</p>

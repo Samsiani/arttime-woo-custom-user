@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 add_filter( 'manage_users_columns', function ( $columns ) {
 	$columns['wcu_phone'] = __( 'Phone Number', 'wcu' );
 	$columns['wcu_sms']   = __( 'SMS accept', 'wcu' );
+	$columns['wcu_call']  = __( 'Call accept', 'wcu' );
 	return $columns;
 } );
 add_filter( 'manage_users_custom_column', function ( $out, $name, $user_id ) {
@@ -12,6 +13,12 @@ add_filter( 'manage_users_custom_column', function ( $out, $name, $user_id ) {
 	}
 	if ( $name === 'wcu_sms' ) {
 		$consent = wcu_get_sms_consent( $user_id );
+		if ( $consent === 'yes' ) return '<span style="color:#2e7d32;font-weight:600;">' . esc_html__( 'Yes', 'wcu' ) . '</span>';
+		if ( $consent === 'no' )  return '<span style="color:#c62828;font-weight:600;">' . esc_html__( 'No', 'wcu' ) . '</span>';
+		return '<span style="color:#616161;">' . esc_html__( '(blank)', 'wcu' ) . '</span>';
+	}
+	if ( $name === 'wcu_call' ) {
+		$consent = wcu_get_call_consent( $user_id );
 		if ( $consent === 'yes' ) return '<span style="color:#2e7d32;font-weight:600;">' . esc_html__( 'Yes', 'wcu' ) . '</span>';
 		if ( $consent === 'no' )  return '<span style="color:#c62828;font-weight:600;">' . esc_html__( 'No', 'wcu' ) . '</span>';
 		return '<span style="color:#616161;">' . esc_html__( '(blank)', 'wcu' ) . '</span>';
