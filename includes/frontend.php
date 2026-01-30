@@ -39,6 +39,8 @@ add_action( 'woocommerce_register_form', function () {
 	$email       = isset( $_POST['email'] ) ? wp_unslash( (string) $_POST['email'] ) : '';
 	$sms_consent = isset( $_POST['_sms_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_sms_consent'] ) ) : 'yes';
 	if ( ! in_array( $sms_consent, array( 'yes','no' ), true ) ) $sms_consent = 'yes';
+	$call_consent = isset( $_POST['_call_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_call_consent'] ) ) : 'yes';
+	if ( ! in_array( $call_consent, array( 'yes','no' ), true ) ) $call_consent = 'yes';
 
 	$terms_html = wcu_get_terms_content_html();
 	$terms_url  = wcu_get_terms_url();
@@ -77,6 +79,15 @@ add_action( 'woocommerce_register_form', function () {
 			</div>
 		</div>
 	</p>
+	<p class="form-row form-row-wide">
+		<div class="wcu-inline-control wcu-inline-control--center wcu-inline-control--highlight" style="width:100%;">
+			<span class="wcu-inline-control__label"><?php esc_html_e( 'თანხმობა სატელეფონო ზარზე', 'wcu' ); ?></span>
+			<div class="wcu-radio-inline">
+				<label><input type="radio" name="_call_consent" value="yes" <?php checked( $call_consent,'yes'); ?> /> <?php esc_html_e( 'დიახ', 'wcu' ); ?></label>
+				<label><input type="radio" name="_call_consent" value="no" <?php checked( $call_consent,'no'); ?> /> <?php esc_html_e( 'არა', 'wcu' ); ?></label>
+			</div>
+		</div>
+	</p>
 	<p class="form-row form-row-wide" style="display:flex;flex-direction:column;gap:8px;">
 		<label>
 			<input type="checkbox" name="wcu_terms_agree" id="wcu_terms_agree" value="1" <?php checked( isset($_POST['wcu_terms_agree']) ); ?> />
@@ -101,6 +112,9 @@ add_action( 'woocommerce_created_customer', function ( $customer_id ) {
 	$val = isset( $_POST['_sms_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_sms_consent'] ) ) : '';
 	if ( in_array( $val, array( 'yes','no' ), true ) ) update_user_meta( $customer_id, '_sms_consent', $val );
 
+	$call_val = isset( $_POST['_call_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_call_consent'] ) ) : '';
+	if ( in_array( $call_val, array( 'yes','no' ), true ) ) update_user_meta( $customer_id, '_call_consent', $call_val );
+
 	if ( isset( $_POST['billing_phone'] ) )
 		update_user_meta( $customer_id, 'billing_phone', (string) wp_unslash( $_POST['billing_phone'] ) );
 
@@ -124,6 +138,11 @@ add_action( 'woocommerce_save_account_details', function ( $user_id ) {
 		$val = strtolower( (string) wp_unslash( $_POST['account_sms_consent'] ) );
 		if ( in_array( $val, array('yes','no'), true ) )
 			update_user_meta( $user_id, '_sms_consent', $val );
+	}
+	if ( isset( $_POST['account_call_consent'] ) ) {
+		$call_val = strtolower( (string) wp_unslash( $_POST['account_call_consent'] ) );
+		if ( in_array( $call_val, array('yes','no'), true ) )
+			update_user_meta( $user_id, '_call_consent', $call_val );
 	}
 	if ( isset( $_POST['wcu_terms_agree'] ) )
 		update_user_meta( $user_id, '_wcu_terms_accepted', current_time( 'mysql' ) );
