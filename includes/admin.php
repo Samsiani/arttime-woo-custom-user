@@ -68,6 +68,29 @@ add_action( 'wp_ajax_wcu_bulk_link_club_cards', function () {
 	) );
 } );
 
+add_action( 'wp_ajax_wcu_test_admin_email', function () {
+	check_ajax_referer( 'wcu_test_admin_email', '_nonce' );
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied.', 'wcu' ) ) );
+	}
+
+	$admin_email = wcu_get_admin_notify_email();
+	if ( ! $admin_email ) {
+		wp_send_json_error( array( 'message' => __( 'No valid admin email configured.', 'wcu' ) ) );
+	}
+
+	$subject = __( 'WCU SMS Consent - Test Email', 'wcu' );
+	$body    = __( 'This is a test email from the WCU plugin. If you received this message, your SMTP configuration is working correctly.', 'wcu' );
+	$sent    = wp_mail( $admin_email, $subject, $body );
+
+	if ( $sent ) {
+		wp_send_json_success( array( 'message' => sprintf( __( 'Test email sent to %s.', 'wcu' ), $admin_email ) ) );
+	} else {
+		wp_send_json_error( array( 'message' => __( 'Failed to send test email. Please check your SMTP settings.', 'wcu' ) ) );
+	}
+} );
+
 add_filter( 'manage_users_columns', function ( $columns ) {
 	$columns['wcu_phone'] = __( 'Phone Number', 'wcu' );
 	$columns['wcu_sms']   = __( 'SMS accept', 'wcu' );
@@ -123,6 +146,8 @@ add_action( 'admin_init', function () {
 	add_settings_field( 'wcu_admin_email', __( 'Administrator Email', 'wcu' ), function () {
 		$val = esc_attr( get_option( 'wcu_admin_email', '' ) );
 		echo '<input type="email" name="wcu_admin_email" value="' . $val . '" class="regular-text" placeholder="' . esc_attr( get_option( 'admin_email' ) ) . '"/>';
+		echo ' <button type="button" class="button" id="wcu-test-email-btn">' . esc_html__( 'Send Test Email', 'wcu' ) . '</button>';
+		echo '<span id="wcu-test-email-status" style="margin-left:10px;"></span>';
 	}, 'wcu_settings', 'wcu_main_section' );
 
 	add_settings_section( 'wcu_terms_section', __( 'Terms & Conditions', 'wcu' ),
@@ -358,6 +383,44 @@ function wcu_render_settings_page() {
 				}
 
 				runBatch(0);
+			});
+		})();
+		</script>
+		<script>
+		(function(){
+			var btn = document.getElementById('wcu-test-email-btn');
+			var statusEl = document.getElementById('wcu-test-email-status');
+			var nonce = <?php echo wp_json_encode( wp_create_nonce( 'wcu_test_admin_email' ) ); ?>;
+			var ajaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+
+			if (!btn) return;
+
+			btn.addEventListener('click', function(){
+				btn.disabled = true;
+				statusEl.textContent = <?php echo wp_json_encode( __( 'Sending…', 'wcu' ) ); ?>;
+				statusEl.style.color = '';
+
+				var data = new FormData();
+				data.append('action', 'wcu_test_admin_email');
+				data.append('_nonce', nonce);
+
+				fetch(ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
+					.then(function(r){ return r.json(); })
+					.then(function(resp){
+						if (resp.success) {
+							statusEl.textContent = resp.data.message;
+							statusEl.style.color = '#2e7d32';
+						} else {
+							statusEl.textContent = resp.data.message;
+							statusEl.style.color = '#c62828';
+						}
+						btn.disabled = false;
+					})
+					.catch(function(){
+						statusEl.textContent = <?php echo wp_json_encode( __( 'Request failed.', 'wcu' ) ); ?>;
+						statusEl.style.color = '#c62828';
+						btn.disabled = false;
+					});
 			});
 		})();
 		</script>
