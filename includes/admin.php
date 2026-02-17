@@ -26,6 +26,48 @@ function wcu_batch_insert_external_phones( $phones ) {
 	return $wpdb->rows_affected;
 }
 
+add_action( 'wp_ajax_wcu_bulk_link_club_cards', function () {
+	check_ajax_referer( 'wcu_bulk_link_club_cards', '_nonce' );
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied.', 'wcu' ) ) );
+	}
+
+	$offset  = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+	$per_page = 50;
+
+	$user_query = new WP_User_Query( array(
+		'number'  => $per_page,
+		'offset'  => $offset,
+		'fields'  => 'ids',
+		'orderby' => 'ID',
+		'order'   => 'ASC',
+	) );
+
+	$user_ids  = $user_query->get_results();
+	$total     = $user_query->get_total();
+	$linked    = 0;
+	$errors    = 0;
+
+	foreach ( $user_ids as $uid ) {
+		$result = wcu_link_coupon_to_user( (int) $uid );
+		if ( $result ) {
+			$linked++;
+		}
+	}
+
+	$processed = $offset + count( $user_ids );
+	$done      = $processed >= $total;
+
+	wp_send_json_success( array(
+		'processed' => $processed,
+		'linked'    => $linked,
+		'errors'    => $errors,
+		'total'     => $total,
+		'done'      => $done,
+	) );
+} );
+
 add_filter( 'manage_users_columns', function ( $columns ) {
 	$columns['wcu_phone'] = __( 'Phone Number', 'wcu' );
 	$columns['wcu_sms']   = __( 'SMS accept', 'wcu' );
@@ -241,6 +283,84 @@ function wcu_render_settings_page() {
 			<?php wp_nonce_field( 'wcu_clear_external', 'wcu_clear_external_nonce' ); ?>
 			<?php submit_button( __( 'Clear All External Phones', 'wcu' ), 'secondary', 'wcu_clear_external_phones', false ); ?>
 		</form>
+		
+		<hr/>
+		<h2><?php esc_html_e( 'Link Club Cards to All Users', 'wcu' ); ?></h2>
+		<p><?php esc_html_e( 'Scan all users and automatically link Club Card coupons from ERP Sync based on matching phone numbers. Processes 50 users per batch.', 'wcu' ); ?></p>
+		<p>
+			<button type="button" class="button button-primary" id="wcu-bulk-link-btn"><?php esc_html_e( 'Link Club Cards to All Users', 'wcu' ); ?></button>
+		</p>
+		<div id="wcu-bulk-link-status" style="display:none;margin-top:10px;">
+			<div style="background:#f0f0f1;border:1px solid #c3c4c7;padding:12px 16px;border-radius:4px;">
+				<p id="wcu-bulk-link-progress" style="margin:0 0 8px;font-weight:600;"></p>
+				<div style="background:#ddd;border-radius:3px;height:20px;overflow:hidden;">
+					<div id="wcu-bulk-link-bar" style="background:#2271b1;height:100%;width:0;transition:width .3s;"></div>
+				</div>
+				<p id="wcu-bulk-link-stats" style="margin:8px 0 0;color:#50575e;"></p>
+			</div>
+		</div>
+		<script>
+		(function(){
+			var btn = document.getElementById('wcu-bulk-link-btn');
+			var statusBox = document.getElementById('wcu-bulk-link-status');
+			var progressEl = document.getElementById('wcu-bulk-link-progress');
+			var barEl = document.getElementById('wcu-bulk-link-bar');
+			var statsEl = document.getElementById('wcu-bulk-link-stats');
+			var nonce = <?php echo wp_json_encode( wp_create_nonce( 'wcu_bulk_link_club_cards' ) ); ?>;
+			var ajaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+
+			if (!btn) return;
+
+			btn.addEventListener('click', function(){
+				btn.disabled = true;
+				statusBox.style.display = 'block';
+				barEl.style.width = '0';
+				var totalLinked = 0;
+				var totalErrors = 0;
+
+				function runBatch(offset) {
+					var data = new FormData();
+					data.append('action', 'wcu_bulk_link_club_cards');
+					data.append('_nonce', nonce);
+					data.append('offset', offset);
+
+					progressEl.textContent = <?php echo wp_json_encode( __( 'Processing…', 'wcu' ) ); ?>;
+
+					fetch(ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
+						.then(function(r){ return r.json(); })
+						.then(function(resp){
+							if (!resp.success) {
+								progressEl.textContent = <?php echo wp_json_encode( __( 'Error occurred.', 'wcu' ) ); ?>;
+								btn.disabled = false;
+								return;
+							}
+							var d = resp.data;
+							totalLinked += d.linked;
+							totalErrors += d.errors;
+							var pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 100;
+							barEl.style.width = pct + '%';
+							statsEl.textContent = d.processed + ' / ' + d.total + ' ' +
+								<?php echo wp_json_encode( __( 'users processed', 'wcu' ) ); ?> + ', ' +
+								totalLinked + ' ' + <?php echo wp_json_encode( __( 'coupons linked', 'wcu' ) ); ?> + ', ' +
+								totalErrors + ' ' + <?php echo wp_json_encode( __( 'errors', 'wcu' ) ); ?>;
+
+							if (d.done) {
+								progressEl.textContent = <?php echo wp_json_encode( __( 'Completed!', 'wcu' ) ); ?>;
+								btn.disabled = false;
+							} else {
+								runBatch(d.processed);
+							}
+						})
+						.catch(function(){
+							progressEl.textContent = <?php echo wp_json_encode( __( 'Request failed.', 'wcu' ) ); ?>;
+							btn.disabled = false;
+						});
+				}
+
+				runBatch(0);
+			});
+		})();
+		</script>
 	</div>
 	<?php
 }
