@@ -34,17 +34,41 @@ function wcu_get_admin_notify_email() {
 	return ( is_string( $opt ) && is_email( $opt ) ) ? $opt : get_option( 'admin_email' );
 }
 function wcu_maybe_send_sms_consent_notification( $user_id, $old, $new, $context = '' ) {
+	static $sent = array();
+
 	$new = strtolower( (string) $new );
 	if ( ! in_array( $new, array( 'yes', 'no' ), true ) ) return;
 	$old_norm = strtolower( (string) $old );
 	if ( $old_norm === $new && $context !== 'registration' ) return;
 
+	$sent_key = $user_id . '_' . $new . '_' . $context;
+	if ( isset( $sent[ $sent_key ] ) ) return;
+
 	$user = get_userdata( $user_id );
 	if ( ! $user ) return;
 
-	$full_name = trim( $user->first_name . ' ' . $user->last_name );
+	$first = $user->first_name;
+	$last  = $user->last_name;
+	if ( empty( $first ) && isset( $_POST['account_first_name'] ) ) {
+		$first = sanitize_text_field( wp_unslash( $_POST['account_first_name'] ) );
+	}
+	if ( empty( $last ) && isset( $_POST['account_last_name'] ) ) {
+		$last = sanitize_text_field( wp_unslash( $_POST['account_last_name'] ) );
+	}
+	$full_name = trim( $first . ' ' . $last );
 	if ( $full_name === '' ) $full_name = $user->display_name ?: $user->user_login;
-	$phone_display = ( $p = wcu_get_user_phone( $user_id ) ) ? $p : __( '(not provided)', 'wcu' );
+
+	$phone_display = wcu_get_user_phone( $user_id );
+	if ( empty( $phone_display ) ) {
+		foreach ( array( 'billing_phone', 'account_phone', 'anketa_phone_local' ) as $key ) {
+			if ( ! empty( $_POST[ $key ] ) ) {
+				$phone_display = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
+				break;
+			}
+		}
+	}
+	if ( empty( $phone_display ) ) $phone_display = __( '(not provided)', 'wcu' );
+
 	$admin_email   = wcu_get_admin_notify_email();
 	if ( ! $admin_email ) return;
 
@@ -54,6 +78,8 @@ function wcu_maybe_send_sms_consent_notification( $user_id, $old, $new, $context
 	$context_str= $context ? sprintf( __( 'Context: %s', 'wcu' ), $context ) : '';
 	$body       = sprintf( __( 'User %1$s, phone number: %2$s, %3$s %4$s', 'wcu' ), $full_name, $phone_display, $agree_str, $context_str );
 	wp_mail( $admin_email, $subject, $body );
+
+	$sent[ $sent_key ] = true;
 }
 function wcu_phone_exists_for_another_user( $normalized_phone, $current_user_id = 0 ) {
 	$normalized_phone = trim( (string) $normalized_phone );
