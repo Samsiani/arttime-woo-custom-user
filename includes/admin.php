@@ -148,8 +148,11 @@ function wcu_render_settings_page() {
 			} elseif ( ! in_array( $file_type, array( 'text/csv', 'text/plain', 'application/csv' ), true ) ) {
 				add_settings_error( 'wcu_external_import', 'invalid_mime', __( 'Invalid file type.', 'wcu' ), 'error' );
 			} else {
+				// Additional validation: check if file can be opened and parsed as CSV
 				$handle = fopen( $file_tmp, 'r' );
-				if ( $handle ) {
+				if ( ! $handle ) {
+					add_settings_error( 'wcu_external_import', 'file_error', __( 'Unable to read file.', 'wcu' ), 'error' );
+				} else {
 					$batch = array();
 					while ( ( $row = fgetcsv( $handle ) ) !== false ) {
 						if ( empty( $row[0] ) ) continue;
@@ -182,7 +185,8 @@ function wcu_render_settings_page() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( __( 'You do not have permission to perform this action.', 'wcu' ) );
 		}
-		$wpdb->query( "TRUNCATE TABLE $external_table" );
+		// Use query with explicit table name (wpdb->prefix is trusted as it comes from WP config)
+		$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}club_anketa_external_phones" );
 		add_settings_error( 'wcu_external_import', 'clear_success', __( 'External phone database cleared successfully.', 'wcu' ), 'success' );
 	}
 	

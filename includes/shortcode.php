@@ -225,9 +225,10 @@ function wcu_udc_ajax_handler() {
 			$norm = wcu_normalize_phone( $query );
 			if ( $norm && strlen( $norm ) === 9 ) {
 				global $wpdb;
+				// Table name uses wpdb->prefix which is trusted (comes from wp-config.php)
 				$table = $wpdb->prefix . 'club_anketa_external_phones';
 				$found = $wpdb->get_var( $wpdb->prepare(
-					"SELECT phone FROM $table WHERE phone = %s LIMIT 1",
+					"SELECT phone FROM {$table} WHERE phone = %s LIMIT 1",
 					$norm
 				) );
 				if ( $found ) {
