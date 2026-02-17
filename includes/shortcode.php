@@ -132,6 +132,43 @@ function wcu_udc_render_results_html( $user ) {
 }
 
 /**
+ * Render HTML for external phone (not registered user)
+ */
+function wcu_udc_render_external_phone_html( $phone ) {
+	ob_start();
+	?>
+	<div class="wcu-udc-results-layout">
+		<div class="wcu-udc-panel wcu-udc-panel--details">
+			<div class="wcu-udc-panel__header">
+				<h3><?php esc_html_e( 'ნომერი SMS ბაზაში', 'wcu' ); ?></h3>
+			</div>
+			<div class="wcu-udc-panel__body">
+				<ul class="wcu-detail-list">
+					<li>
+						<span class="wcu-dl-label"><?php esc_html_e( 'ტელეფონის ნომერი', 'wcu' ); ?>:</span>
+						<span class="wcu-dl-value"><?php echo esc_html( $phone ); ?></span>
+					</li>
+					<li>
+						<span class="wcu-dl-label"><?php esc_html_e( 'სტატუსი', 'wcu' ); ?>:</span>
+						<span class="wcu-dl-value"><span class="wcu-badge wcu-badge--warning"><?php esc_html_e( 'არ არის რეგისტრირებული', 'wcu' ); ?></span></span>
+					</li>
+					<li>
+						<span class="wcu-dl-label"><?php esc_html_e( 'SMS თანხმობა', 'wcu' ); ?>:</span>
+						<span class="wcu-dl-value"><span class="wcu-badge wcu-badge--yes"><?php esc_html_e( 'თანხმობა', 'wcu' ); ?></span></span>
+					</li>
+				</ul>
+				<div style="margin-top: 1rem; padding: 0.75rem; background: #fff3cd; border-left: 4px solid #856404; color: #856404;">
+					<strong><?php esc_html_e( 'ინფორმაცია:', 'wcu' ); ?></strong>
+					<?php esc_html_e( 'ნომერი ნაპოვნია SMS თანხმობის ბაზაში, მაგრამ არ არის რეგისტრირებული საიტზე.', 'wcu' ); ?>
+				</div>
+			</div>
+		</div>
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
+/**
  * AJAX handler
  */
 add_action( 'wp_ajax_wcu_udc_search', 'wcu_udc_ajax_handler' );
@@ -183,6 +220,23 @@ function wcu_udc_ajax_handler() {
 	}
 
 	if ( ! $result ) {
+		// Fallback: check external phone whitelist
+		if ( wcu_is_phone_like( $query ) ) {
+			$norm = wcu_normalize_phone( $query );
+			if ( $norm && strlen( $norm ) === 9 ) {
+				global $wpdb;
+				// Table name uses wpdb->prefix which is trusted (comes from wp-config.php)
+				$table = $wpdb->prefix . 'club_anketa_external_phones';
+				$found = $wpdb->get_var( $wpdb->prepare(
+					"SELECT phone FROM {$table} WHERE phone = %s LIMIT 1",
+					$norm
+				) );
+				if ( $found ) {
+					$html = wcu_udc_render_external_phone_html( $norm );
+					wp_send_json_success( array( 'html' => $html ) );
+				}
+			}
+		}
 		wp_send_json_error( array( 'message' => __( 'No matching user was found.', 'wcu' ) ) );
 	}
 
