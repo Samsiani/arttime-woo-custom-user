@@ -113,3 +113,64 @@ function wcu_get_terms_content_html() {
 function wcu_get_print_terms_url() {
 	return add_query_arg( 'wcu-print-terms', '1', home_url( '/' ) );
 }
+
+/**
+ * Find a WooCommerce coupon whose _erp_sync_allowed_phones matches a phone number.
+ *
+ * @param string $phone Raw or normalized phone number.
+ * @return string|false Coupon code on match, false otherwise.
+ */
+function wcu_find_coupon_by_phone( $phone ) {
+	$normalized = wcu_normalize_phone( $phone );
+	if ( ! $normalized ) {
+		return false;
+	}
+
+	global $wpdb;
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+	$post_ids = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT p.ID FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+			 WHERE p.post_type = 'shop_coupon'
+			   AND p.post_status = 'publish'
+			   AND pm.meta_key = %s
+			   AND pm.meta_value LIKE %s
+			 ORDER BY p.ID DESC",
+			'_erp_sync_allowed_phones',
+			'%' . $wpdb->esc_like( $normalized ) . '%'
+		)
+	);
+
+	foreach ( $post_ids as $post_id ) {
+		$meta_phone = get_post_meta( (int) $post_id, '_erp_sync_allowed_phones', true );
+		$meta_normalized = wcu_normalize_phone( $meta_phone );
+		if ( $meta_normalized && $meta_normalized === $normalized ) {
+			return get_the_title( (int) $post_id );
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Link a coupon to a user based on their billing phone number.
+ *
+ * @param int $user_id WordPress user ID.
+ * @return bool True if a coupon was linked, false otherwise.
+ */
+function wcu_link_coupon_to_user( $user_id ) {
+	$phone = wcu_get_user_phone( $user_id );
+	if ( ! $phone ) {
+		return false;
+	}
+
+	$coupon_code = wcu_find_coupon_by_phone( $phone );
+	if ( $coupon_code === false ) {
+		return false;
+	}
+
+	update_user_meta( $user_id, '_club_card_coupon', $coupon_code );
+	return true;
+}

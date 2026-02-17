@@ -123,6 +123,8 @@ add_action( 'woocommerce_created_customer', function ( $customer_id ) {
 
 	if ( isset( $_POST['wcu_terms_agree'] ) )
 		update_user_meta( $customer_id, '_wcu_terms_accepted', current_time( 'mysql' ) );
+
+	wcu_link_coupon_to_user( $customer_id );
 },10,1);
 
 add_action( 'woocommerce_save_account_details', function ( $user_id ) {
@@ -148,6 +150,8 @@ add_action( 'woocommerce_save_account_details', function ( $user_id ) {
 		update_user_meta( $user_id, '_wcu_terms_accepted', current_time( 'mysql' ) );
 	else
 		delete_user_meta( $user_id, '_wcu_terms_accepted' );
+
+	wcu_link_coupon_to_user( $user_id );
 },10,1);
 
 add_action( 'template_redirect', function () {
