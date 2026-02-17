@@ -109,15 +109,6 @@ add_action( 'woocommerce_register_form', function () {
 },10,1);
 
 add_action( 'woocommerce_created_customer', function ( $customer_id ) {
-	$val = isset( $_POST['_sms_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_sms_consent'] ) ) : '';
-	if ( in_array( $val, array( 'yes','no' ), true ) ) {
-		update_user_meta( $customer_id, '_sms_consent', $val );
-		wcu_maybe_send_sms_consent_notification( $customer_id, '', $val, 'registration' );
-	}
-
-	$call_val = isset( $_POST['_call_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_call_consent'] ) ) : '';
-	if ( in_array( $call_val, array( 'yes','no' ), true ) ) update_user_meta( $customer_id, '_call_consent', $call_val );
-
 	if ( isset( $_POST['billing_phone'] ) )
 		update_user_meta( $customer_id, 'billing_phone', (string) wp_unslash( $_POST['billing_phone'] ) );
 
@@ -126,6 +117,15 @@ add_action( 'woocommerce_created_customer', function ( $customer_id ) {
 
 	if ( isset( $_POST['wcu_terms_agree'] ) )
 		update_user_meta( $customer_id, '_wcu_terms_accepted', current_time( 'mysql' ) );
+
+	$val = isset( $_POST['_sms_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_sms_consent'] ) ) : '';
+	if ( in_array( $val, array( 'yes','no' ), true ) ) {
+		update_user_meta( $customer_id, '_sms_consent', $val );
+		wcu_maybe_send_sms_consent_notification( $customer_id, '', $val, 'registration' );
+	}
+
+	$call_val = isset( $_POST['_call_consent'] ) ? strtolower( (string) wp_unslash( $_POST['_call_consent'] ) ) : '';
+	if ( in_array( $call_val, array( 'yes','no' ), true ) ) update_user_meta( $customer_id, '_call_consent', $call_val );
 
 	wcu_link_coupon_to_user( $customer_id );
 },10,1);
@@ -139,14 +139,6 @@ add_action( 'woocommerce_save_account_details', function ( $user_id ) {
 		$cc = isset( $_POST['account_club_card'] ) ? (string) wp_unslash( $_POST['account_club_card'] ) : '';
 		update_user_meta( $user_id, '_club_card_coupon', $cc );
 	}
-	if ( isset( $_POST['account_sms_consent'] ) ) {
-		$old_sms = wcu_get_sms_consent( $user_id );
-		$val = strtolower( (string) wp_unslash( $_POST['account_sms_consent'] ) );
-		if ( in_array( $val, array('yes','no'), true ) ) {
-			update_user_meta( $user_id, '_sms_consent', $val );
-			wcu_maybe_send_sms_consent_notification( $user_id, $old_sms, $val, 'account_update' );
-		}
-	}
 	if ( isset( $_POST['account_call_consent'] ) ) {
 		$call_val = strtolower( (string) wp_unslash( $_POST['account_call_consent'] ) );
 		if ( in_array( $call_val, array('yes','no'), true ) )
@@ -156,6 +148,15 @@ add_action( 'woocommerce_save_account_details', function ( $user_id ) {
 		update_user_meta( $user_id, '_wcu_terms_accepted', current_time( 'mysql' ) );
 	else
 		delete_user_meta( $user_id, '_wcu_terms_accepted' );
+
+	if ( isset( $_POST['account_sms_consent'] ) ) {
+		$old_sms = wcu_get_sms_consent( $user_id );
+		$val = strtolower( (string) wp_unslash( $_POST['account_sms_consent'] ) );
+		if ( in_array( $val, array('yes','no'), true ) ) {
+			update_user_meta( $user_id, '_sms_consent', $val );
+			wcu_maybe_send_sms_consent_notification( $user_id, $old_sms, $val, 'account_update' );
+		}
+	}
 
 	wcu_link_coupon_to_user( $user_id );
 },10,1);
