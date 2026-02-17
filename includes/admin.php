@@ -1,6 +1,31 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+/**
+ * Batch insert external phones into database
+ * @param array $phones Array of normalized 9-digit phone numbers
+ * @return int Number of rows inserted
+ */
+function wcu_batch_insert_external_phones( $phones ) {
+	global $wpdb;
+	if ( empty( $phones ) ) return 0;
+	
+	$table = $wpdb->prefix . 'club_anketa_external_phones';
+	$placeholders = array();
+	$values = array();
+	
+	foreach ( $phones as $phone ) {
+		$placeholders[] = '(%s)';
+		$values[] = $phone;
+	}
+	
+	$sql = "INSERT IGNORE INTO $table (phone) VALUES " . implode( ',', $placeholders );
+	$prepared = $wpdb->prepare( $sql, $values );
+	$wpdb->query( $prepared );
+	
+	return $wpdb->rows_affected;
+}
+
 add_filter( 'manage_users_columns', function ( $columns ) {
 	$columns['wcu_phone'] = __( 'Phone Number', 'wcu' );
 	$columns['wcu_sms']   = __( 'SMS accept', 'wcu' );
@@ -98,10 +123,78 @@ add_action( 'admin_init', function () {
 
 function wcu_render_settings_page() {
 	if ( ! current_user_can( 'manage_options' ) ) return;
+	
+	global $wpdb;
+	$external_table = $wpdb->prefix . 'club_anketa_external_phones';
+	
+	// Handle external phone import
+	if ( isset( $_POST['wcu_run_external_import'] ) && check_admin_referer( 'wcu_import_external', 'wcu_import_external_nonce' ) ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have permission to perform this action.', 'wcu' ) );
+		}
+		
+		$imported = 0;
+		$skipped = 0;
+		
+		if ( isset( $_FILES['wcu_external_csv_file'] ) && $_FILES['wcu_external_csv_file']['error'] === UPLOAD_ERR_OK ) {
+			$file_tmp = $_FILES['wcu_external_csv_file']['tmp_name'];
+			$file_name = $_FILES['wcu_external_csv_file']['name'];
+			$file_type = $_FILES['wcu_external_csv_file']['type'];
+			
+			// Validate file extension
+			$ext = strtolower( pathinfo( $file_name, PATHINFO_EXTENSION ) );
+			if ( $ext !== 'csv' ) {
+				add_settings_error( 'wcu_external_import', 'invalid_extension', __( 'Please upload a CSV file.', 'wcu' ), 'error' );
+			} elseif ( ! in_array( $file_type, array( 'text/csv', 'text/plain', 'application/csv' ), true ) ) {
+				add_settings_error( 'wcu_external_import', 'invalid_mime', __( 'Invalid file type.', 'wcu' ), 'error' );
+			} else {
+				$handle = fopen( $file_tmp, 'r' );
+				if ( $handle ) {
+					$batch = array();
+					while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+						if ( empty( $row[0] ) ) continue;
+						$normalized = wcu_normalize_phone( $row[0] );
+						if ( $normalized && strlen( $normalized ) === 9 ) {
+							$batch[] = $normalized;
+							if ( count( $batch ) >= 1000 ) {
+								$imported += wcu_batch_insert_external_phones( $batch );
+								$batch = array();
+							}
+						} else {
+							$skipped++;
+						}
+					}
+					if ( ! empty( $batch ) ) {
+						$imported += wcu_batch_insert_external_phones( $batch );
+					}
+					fclose( $handle );
+					add_settings_error( 'wcu_external_import', 'import_success', 
+						sprintf( __( 'Import completed. Imported: %d, Skipped: %d', 'wcu' ), $imported, $skipped ), 'success' );
+				}
+			}
+		} else {
+			add_settings_error( 'wcu_external_import', 'no_file', __( 'Please select a file to upload.', 'wcu' ), 'error' );
+		}
+	}
+	
+	// Handle clear external phones
+	if ( isset( $_POST['wcu_clear_external_phones'] ) && check_admin_referer( 'wcu_clear_external', 'wcu_clear_external_nonce' ) ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have permission to perform this action.', 'wcu' ) );
+		}
+		$wpdb->query( "TRUNCATE TABLE $external_table" );
+		add_settings_error( 'wcu_external_import', 'clear_success', __( 'External phone database cleared successfully.', 'wcu' ), 'success' );
+	}
+	
+	// Get current row count
+	$external_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $external_table" );
+	
 	$export_nonce  = wp_create_nonce( 'wcu_export_users' );
 	$example_nonce = wp_create_nonce( 'wcu_download_import_example' );
 	$export_url  = add_query_arg( array( 'action'=>'wcu_export_users','_wpnonce'=>$export_nonce ), admin_url( 'admin-post.php' ) );
 	$example_url = add_query_arg( array( 'action'=>'wcu_download_import_example','_wpnonce'=>$example_nonce ), admin_url( 'admin-post.php' ) );
+	
+	settings_errors( 'wcu_external_import' );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Custom User Settings', 'wcu' ); ?></h1>
@@ -127,6 +220,23 @@ function wcu_render_settings_page() {
 		<h2><?php esc_html_e( 'Export Users (CSV)', 'wcu' ); ?></h2>
 		<p><?php esc_html_e( 'Exports users with phone & SMS consent (only users having phone).', 'wcu' ); ?></p>
 		<p><a class="button button-primary" href="<?php echo esc_url( $export_url ); ?>"><?php esc_html_e( 'Export users CSV', 'wcu' ); ?></a></p>
+		
+		<hr/>
+		<h2><?php esc_html_e( 'External Phone Database (SMS Consent Whitelist)', 'wcu' ); ?></h2>
+		<p><?php esc_html_e( 'Import phone numbers of non-registered users who have given SMS consent. These numbers will be searchable via the user data check shortcode.', 'wcu' ); ?></p>
+		<p><strong><?php printf( esc_html__( 'Current entries in database: %d', 'wcu' ), $external_count ); ?></strong></p>
+		
+		<form method="post" enctype="multipart/form-data" style="margin-bottom: 1em;">
+			<?php wp_nonce_field( 'wcu_import_external', 'wcu_import_external_nonce' ); ?>
+			<p><label for="wcu_external_csv_file"><strong><?php esc_html_e( 'CSV File (phone numbers)', 'wcu' ); ?></strong></label><br/>
+				<input type="file" id="wcu_external_csv_file" name="wcu_external_csv_file" accept=".csv,text/csv" required /></p>
+			<?php submit_button( __( 'Import External Phones', 'wcu' ), 'primary', 'wcu_run_external_import', false ); ?>
+		</form>
+		
+		<form method="post" onsubmit="return confirm('<?php echo esc_js( __( 'Are you sure you want to clear all external phone numbers?', 'wcu' ) ); ?>');">
+			<?php wp_nonce_field( 'wcu_clear_external', 'wcu_clear_external_nonce' ); ?>
+			<?php submit_button( __( 'Clear All External Phones', 'wcu' ), 'secondary', 'wcu_clear_external_phones', false ); ?>
+		</form>
 	</div>
 	<?php
 }

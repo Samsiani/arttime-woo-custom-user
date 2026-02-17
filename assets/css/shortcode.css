@@ -29,6 +29,7 @@
 .wcu-badge--yes{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
 .wcu-badge--no{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
 .wcu-badge--unset{background:#eceff3;color:#374151;border:1px solid #d1d5db}
+.wcu-badge--warning{background:#fff3cd;color:#856404;border:1px solid #ffc107}
 
 /* Status Panel */
 .wcu-udc-panel--status{background:#fff}
